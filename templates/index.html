@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Garbage Image Classifier</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: system-ui, sans-serif;
+      color: #17231b;
+      background: #f3f7f3;
+    }
+
+    body {
+      display: grid;
+      min-height: 100vh;
+      margin: 0;
+      place-items: center;
+    }
+
+    main {
+      box-sizing: border-box;
+      width: min(100% - 2rem, 34rem);
+      padding: 2rem;
+      border: 1px solid #d8e3d9;
+      border-radius: 1rem;
+      background: #fff;
+      box-shadow: 0 1rem 3rem #203a2414;
+    }
+
+    h1 {
+      margin-top: 0;
+      color: #21613a;
+    }
+
+    p {
+      line-height: 1.5;
+    }
+
+    label {
+      display: block;
+      margin: 1.5rem 0 0.5rem;
+      font-weight: 600;
+    }
+
+    input,
+    button {
+      box-sizing: border-box;
+      width: 100%;
+      padding: 0.8rem;
+      border-radius: 0.5rem;
+      font: inherit;
+    }
+
+    input {
+      border: 1px solid #aab9ac;
+      background: #fff;
+    }
+
+    button {
+      margin-top: 1rem;
+      border: 0;
+      background: #21613a;
+      color: #fff;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    button:disabled {
+      cursor: wait;
+      opacity: 0.65;
+    }
+
+    img {
+      display: block;
+      max-width: 100%;
+      max-height: 20rem;
+      margin: 1.5rem auto 0;
+      border-radius: 0.5rem;
+      object-fit: contain;
+    }
+
+    #result {
+      margin-top: 1.5rem;
+      padding: 1rem;
+      border-radius: 0.5rem;
+      background: #edf6ef;
+    }
+
+    #error {
+      color: #a12622;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Garbage Image Classifier</h1>
+    <p>Choose a photo to predict its garbage category.</p>
+    <form id="upload-form">
+      <label for="image">Image file</label>
+      <input id="image" name="image" type="file" accept="image/*" required>
+      <button id="submit" type="submit">Predict category</button>
+    </form>
+    <img id="preview" alt="Selected image preview" hidden>
+    <section id="result" aria-live="polite" hidden>
+      <h2>Prediction</h2>
+      <p>Category: <strong id="class-name"></strong></p>
+      <p>Confidence: <strong id="confidence"></strong></p>
+    </section>
+    <p id="error" role="alert" hidden></p>
+  </main>
+  <script>
+    const form = document.querySelector("#upload-form");
+    const imageInput = document.querySelector("#image");
+    const preview = document.querySelector("#preview");
+    const submitButton = document.querySelector("#submit");
+    const result = document.querySelector("#result");
+    const errorMessage = document.querySelector("#error");
+    let previewUrl;
+
+    imageInput.addEventListener("change", () => {
+      const file = imageInput.files[0];
+      result.hidden = true;
+      errorMessage.hidden = true;
+
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+        previewUrl = undefined;
+      }
+
+      if (!file) {
+        preview.hidden = true;
+        return;
+      }
+
+      if (!file.type.startsWith("image/")) {
+        preview.hidden = true;
+        errorMessage.textContent = "Choose a valid image file.";
+        errorMessage.hidden = false;
+        return;
+      }
+
+      previewUrl = URL.createObjectURL(file);
+      preview.src = previewUrl;
+      preview.hidden = false;
+    });
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      result.hidden = true;
+      errorMessage.hidden = true;
+      submitButton.disabled = true;
+      submitButton.textContent = "Predicting...";
+
+      try {
+        const response = await fetch("/predict", {
+          method: "POST",
+          body: new FormData(form),
+        });
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || "The image could not be analyzed.");
+        }
+
+        document.querySelector("#class-name").textContent = data.class_name;
+        document.querySelector("#confidence").textContent =
+          `${(data.confidence * 100).toFixed(1)}%`;
+        result.hidden = false;
+      } catch (error) {
+        errorMessage.textContent = error.message || "The image could not be analyzed.";
+        errorMessage.hidden = false;
+      } finally {
+        submitButton.disabled = false;
+        submitButton.textContent = "Predict category";
+      }
+    });
+  </script>
+</body>
+</html>
